@@ -1,5 +1,5 @@
 
-image rust:1.27-stretch
+image: rust:1.27-stretch
 
 job:
   script:
