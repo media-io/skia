@@ -1,0 +1,7 @@
+
+image rust:1.27-stretch
+
+job:
+  script:
+  - cargo build --verbose --release
+  - cargo install
