@@ -1,10 +1,10 @@
 
 use config;
-use phoenix::Phoenix;
+use phoenix::{Message, Phoenix};
 use reqwest;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+//#[derive(Debug)]
 pub struct Socket {
   pub hostname: String,
   pub password: String,
@@ -12,6 +12,7 @@ pub struct Socket {
   pub secure: bool,
   pub token: Option<String>,
   pub username: String,
+  pub websocket: Option<Phoenix>
 }
 
 #[derive(Debug, Serialize)]
@@ -52,6 +53,7 @@ impl Socket {
       secure,
       token: None,
       username,
+      websocket: None,
     }
   }
 
@@ -79,7 +81,7 @@ impl Socket {
     let client = reqwest::Client::new();
     let mut response = client.post(&url)
       .json(&body)
-      .send().unwrap();
+      .send().map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {
       if response.status().is_server_error() {
@@ -107,15 +109,39 @@ impl Socket {
     url += &self.port;
     url += "/socket";
 
+    if self.token == None {
+      return Err("missing authentification token".to_owned());
+    }
+
     let mut params = HashMap::new();
     let token = self.token.as_ref().unwrap();
     params.insert("userToken", token.as_str());
 
-    debug!("connect to websocket: {}\nwith parameters: {:?}", url, params);
-
-    let mut phx = Phoenix::new_with_parameters(&url, &params);
-
+    debug!("connect to websocket: {}", url);
+    self.websocket = Some(Phoenix::new_with_parameters(&url, &params));
 
     Ok(())
+  }
+
+  pub fn open_channel(&mut self, channel_name: &str) -> Result<(), String> {
+    if let Some(ref mut phoenix) = self.websocket {
+      let mutex_chan = phoenix.channel(channel_name).clone();
+      let mut device_chan = mutex_chan.lock().unwrap();
+      let payload = json!({
+        "identifier": "marco-dev"
+      });
+
+      device_chan.join_with_message(payload);
+      return Ok(())
+    }
+    Err("missing websocket connection".to_owned())
+  }
+
+  pub fn next_message(&mut self) -> Result<Message, String> {
+    if let Some(ref mut phoenix) = self.websocket {
+      phoenix.out.recv().map_err(|e| e.to_string())
+    } else {
+      Err("missing websocket connection".to_owned())
+    }
   }
 }

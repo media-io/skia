@@ -15,9 +15,7 @@ mod config;
 mod socket;
 
 use chrono::NaiveDateTime;
-// use phoenix::Phoenix;
 use std::{thread, time};
-// use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -105,43 +103,38 @@ fn parse(content: &str) -> Vec<Entry> {
 fn main() {
   env_logger::init();
 
-  let mut s = socket::Socket::new_from_config();
-  s.generate_token();
-
-  s.open_websocket();
-
-  println!("{:?}", s);
-/*
-
-  thread::spawn(move || {
-    let mut params = HashMap::new();
-    params.insert("userToken", token.as_str());
-
-    let mut phx = Phoenix::new_with_parameters(&websocket_url, &params);
-    let mutex_chan = phx.channel("watch:all").clone();
-    {
-      let mut device_chan = mutex_chan.lock().unwrap();
-      let payload = json!({
-        "identifier": "marco-dev"
-      });
-
-      device_chan.join_with_message(payload);
-    }
-
-    loop {
-      match phx.out.recv() {
-        Ok(_msg) => {
-          //println!("user1: {:?}", msg)
-        },
-        Err(_err) => ()//println!("{:?}", err)
+  loop {
+    let mut s = socket::Socket::new_from_config();
+    if let Err(msg) = s.generate_token() {
+      error!("{}", msg);
+    } else {
+      if let Err(msg) = s.open_websocket() {
+        error!("{}", msg);
+      } else {
+        if let Err(msg) = s.open_channel("watch:all") {
+          error!("{}", msg);
+        } else {
+          loop {
+            match s.next_message() {
+              Ok(message) => {
+                if message.topic.as_str() == "watch:all" {
+                  println!("{:?}", message);
+                }
+              },
+              Err(_err) => {
+                break;
+              }
+            }
+          }
+        }
       }
     }
-  });
 
-  println!("start watching file...");
-  loop {
     thread::sleep(time::Duration::from_millis(1000));
-    
+    debug!("retry to connect ...");
+  }
+  
+  /*
     //if let Ok(content) = load_file("tests/AMEEncodingLog.txt") {
     //  let entries = parse(&content);
     //  println!("{:?}", entries);
