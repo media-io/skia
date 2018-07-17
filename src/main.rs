@@ -1,18 +1,21 @@
 
 extern crate chrono;
-extern crate reqwest;
 extern crate env_logger;
+#[macro_use]
+extern crate log;
 extern crate phoenix;
+extern crate reqwest;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
+mod config;
+mod socket;
+
 use chrono::NaiveDateTime;
-use phoenix::Phoenix;
 use std::{thread, time};
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -97,88 +100,47 @@ fn parse(content: &str) -> Vec<Entry> {
   result
 }
 
-#[derive(Debug, Serialize)]
-struct SessionBody {
-  session: Session
-}
-
-#[derive(Debug, Serialize)]
-struct Session {
-  email: String,
-  password: String,
-}
-
 fn main() {
   env_logger::init();
 
-  let body = SessionBody {
-    session: Session {
-      email: "admin@media-io.com".to_owned(),
-      password: "admin123".to_owned(),
-    }
-  };
-
-  #[derive(Debug, Deserialize)]
-  struct SessionReponse {
-    access_token: String,
-  }
-
-
-  let client = reqwest::Client::new();
-  let mut response = client.post("http://localhost:4000/api/sessions")
-    .json(&body)
-    .send().unwrap();
-
-  if !response.status().is_success() {
-    if response.status().is_server_error() {
-      println!("server error!");
+  loop {
+    let mut s = socket::Socket::new_from_config();
+    if let Err(msg) = s.generate_token() {
+      error!("{}", msg);
     } else {
-      println!("Something else happened. Status: {:?}", response.status());
-    }
-    return;
-  }
-
-  let content: SessionReponse = response.json().unwrap();
-
-  let token = content.access_token;
-  let url = "ws://localhost:4000/socket";
-
-  
-  thread::spawn(move || {
-    let mut params = HashMap::new();
-    params.insert("userToken", token.as_str());
-
-    let mut phx = Phoenix::new_with_parameters(&url, &params);
-    let mutex_chan = phx.channel("watch:all").clone();
-    {
-      let mut device_chan = mutex_chan.lock().unwrap();
-      let payload = json!({
-        "identifier": "marco-dev"
-      });
-
-      device_chan.join_with_message(payload);
-    }
-
-    loop {
-      match phx.out.recv() {
-        Ok(_msg) => {
-          //println!("user1: {:?}", msg)
-        },
-        Err(_err) => ()//println!("{:?}", err)
+      if let Err(msg) = s.open_websocket() {
+        error!("{}", msg);
+      } else {
+        if let Err(msg) = s.open_channel("watch:all") {
+          error!("{}", msg);
+        } else {
+          loop {
+            match s.next_message() {
+              Ok(message) => {
+                if message.topic.as_str() == "watch:all" {
+                  println!("{:?}", message);
+                }
+              },
+              Err(_err) => {
+                break;
+              }
+            }
+          }
+        }
       }
     }
-  });
 
-  println!("start watching file...");
-  loop {
     thread::sleep(time::Duration::from_millis(1000));
-    
+    debug!("retry to connect ...");
+  }
+  
+  /*
     //if let Ok(content) = load_file("tests/AMEEncodingLog.txt") {
     //  let entries = parse(&content);
     //  println!("{:?}", entries);
     //  println!("found {:?} transcode", entries.len());
     //}
-  }
+  }*/
 }
 
 #[test]
