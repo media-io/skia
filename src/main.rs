@@ -1,18 +1,23 @@
 
 extern crate chrono;
-extern crate reqwest;
 extern crate env_logger;
+#[macro_use]
+extern crate log;
 extern crate phoenix;
+extern crate reqwest;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
+mod config;
+mod socket;
+
 use chrono::NaiveDateTime;
-use phoenix::Phoenix;
+// use phoenix::Phoenix;
 use std::{thread, time};
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -97,58 +102,22 @@ fn parse(content: &str) -> Vec<Entry> {
   result
 }
 
-#[derive(Debug, Serialize)]
-struct SessionBody {
-  session: Session
-}
-
-#[derive(Debug, Serialize)]
-struct Session {
-  email: String,
-  password: String,
-}
-
 fn main() {
   env_logger::init();
 
-  let body = SessionBody {
-    session: Session {
-      email: "admin@media-io.com".to_owned(),
-      password: "admin123".to_owned(),
-    }
-  };
+  let mut s = socket::Socket::new_from_config();
+  s.generate_token();
 
-  #[derive(Debug, Deserialize)]
-  struct SessionReponse {
-    access_token: String,
-  }
+  s.open_websocket();
 
+  println!("{:?}", s);
+/*
 
-  let client = reqwest::Client::new();
-  let mut response = client.post("http://localhost:4000/api/sessions")
-    .json(&body)
-    .send().unwrap();
-
-  if !response.status().is_success() {
-    if response.status().is_server_error() {
-      println!("server error!");
-    } else {
-      println!("Something else happened. Status: {:?}", response.status());
-    }
-    return;
-  }
-
-  let content: SessionReponse = response.json().unwrap();
-
-  let token = content.access_token;
-  let url = "ws://localhost:4000/socket";
-
-  
   thread::spawn(move || {
     let mut params = HashMap::new();
     params.insert("userToken", token.as_str());
 
-    let mut phx = Phoenix::new_with_parameters(&url, &params);
+    let mut phx = Phoenix::new_with_parameters(&websocket_url, &params);
     let mutex_chan = phx.channel("watch:all").clone();
     {
       let mut device_chan = mutex_chan.lock().unwrap();
@@ -178,7 +147,7 @@ fn main() {
     //  println!("{:?}", entries);
     //  println!("found {:?} transcode", entries.len());
     //}
-  }
+  }*/
 }
 
 #[test]
