@@ -117,8 +117,14 @@ fn main() {
           loop {
             match s.next_message() {
               Ok(message) => {
-                if message.topic.as_str() == "watch:all" {
-                  println!("{:?}", message);
+                match message.topic.as_ref() {
+                  "watch:all" => {
+                    
+                  }
+                  "filesystem:ls" => {
+                    println!("{:?}", message);
+                  }
+                  _ => debug!("{:?}", message),
                 }
               },
               Err(_err) => {
