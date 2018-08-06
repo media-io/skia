@@ -17,6 +17,10 @@ macro_rules! get_env_value {
   })
 }
 
+pub fn get_identifier() -> String {
+  get_env_value!("IDENTIFIER", "identifier_not_set")
+}
+
 pub fn get_backend_hostname() -> String {
   get_env_value!("BACKEND_HOSTNAME", "127.0.0.1")
 }
@@ -35,4 +39,8 @@ pub fn get_backend_password() -> String {
 
 pub fn get_backend_secure() -> String {
   get_env_value!("BACKEND_SECURE", "false")
+}
+
+pub fn get_root_path_browsing() -> String {
+  get_env_value!("ROOT_PATH_BROWSING", "/tmp/")
 }

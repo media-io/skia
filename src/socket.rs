@@ -1,8 +1,10 @@
 
 use config;
-use phoenix::{Message, Phoenix};
+use phoenix::{Channel, Event, Message, Phoenix};
 use reqwest;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use serde_json;
 
 //#[derive(Debug)]
 pub struct Socket {
@@ -12,7 +14,8 @@ pub struct Socket {
   pub secure: bool,
   pub token: Option<String>,
   pub username: String,
-  pub websocket: Option<Phoenix>
+  pub websocket: Option<Phoenix>,
+  pub mutex_chan: Option<Arc<Mutex<Channel>>>
 }
 
 #[derive(Debug, Serialize)]
@@ -54,6 +57,7 @@ impl Socket {
       token: None,
       username,
       websocket: None,
+      mutex_chan: None,
     }
   }
 
@@ -126,12 +130,17 @@ impl Socket {
   pub fn open_channel(&mut self, channel_name: &str) -> Result<(), String> {
     if let Some(ref mut phoenix) = self.websocket {
       let mutex_chan = phoenix.channel(channel_name).clone();
-      let mut device_chan = mutex_chan.lock().unwrap();
-      let payload = json!({
-        "identifier": "marco-dev"
-      });
+      {
+        let mut device_chan = mutex_chan.lock().unwrap();
 
-      device_chan.join_with_message(payload);
+        let identifier = config::get_identifier();
+        let payload = json!({
+          "identifier": identifier
+        });
+
+        device_chan.join_with_message(payload);
+      }
+      self.mutex_chan = Some(mutex_chan);
       return Ok(())
     }
     Err("missing websocket connection".to_owned())
@@ -142,6 +151,13 @@ impl Socket {
       phoenix.out.recv().map_err(|e| e.to_string())
     } else {
       Err("missing websocket connection".to_owned())
+    }
+  }
+
+  pub fn send(&mut self, content: serde_json::Value) {
+    if let Some(ref mutex_chan) = self.mutex_chan {
+      let mut device_chan = mutex_chan.lock().unwrap();
+      device_chan.send(Event::Custom("response".to_string()), &content);
     }
   }
 }
