@@ -1,5 +1,5 @@
 
-use chrono::NaiveDateTime;
+//use chrono::NaiveDateTime;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -11,7 +11,7 @@ struct AdodeMediaEncoderLog {
 
 #[derive(Debug)]
 struct Entry {
-  date_time: NaiveDateTime,
+  //date_time: NaiveDateTime,
   input_filename: Option<String>,
   output_filename: Option<String>,
   preset: Option<String>,
@@ -46,7 +46,7 @@ impl AdodeMediaEncoderLog {
       if line.ends_with(" : File Successfully Encoded") {
 
         let dt = line.replace(" : File Successfully Encoded", "");
-        let date_time = NaiveDateTime::parse_from_str(&dt, "%m/%d/%Y %I:%M:%S %p").unwrap();
+        //let date_time = NaiveDateTime::parse_from_str(&dt, "%m/%d/%Y %I:%M:%S %p").unwrap();
 
         let mut index_back = 1;
         let mut input_filename = None;
@@ -61,7 +61,7 @@ impl AdodeMediaEncoderLog {
           let line = lines[index-index_back];
           if *line == "".to_string() {
             entries.push(Entry{
-              date_time,
+              //date_time,
               input_filename,
               output_filename,
               preset,

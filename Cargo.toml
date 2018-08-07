@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Marc-Antoine Arnaud <arnaud.marcantoine@gmail.com>"]
 
 [dependencies]
-chrono = "0.4"
 env_logger = "0.5.10"
 log = "^0.4"
 phoenix = {git = "https://github.com/media-io/phoenix-rs", branch = "master" }
