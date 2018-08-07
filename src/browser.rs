@@ -14,9 +14,9 @@ impl FileSystem {
   fn from(content: Value) -> Option<Self> {
     if let Value::Object(map) = content {
       if let Some(value) = map.get("body") {
-        if let Value::Object(map) = value {
+        if let &Value::Object(ref map) = value {
           if let Some(path) = map.get("path") {
-            if let Value::String(string_path) = path {
+            if let &Value::String(ref string_path) = path {
               return Some(FileSystem {
                 path: string_path.to_owned()
               })
