@@ -1,11 +1,14 @@
-FROM rust:1.28-stretch
+FROM rust:1.24-stretch as builder
 
-ADD . .
+ADD . ./
 
-RUN apt update && \
-    apt install -y libssl-dev && \
-    cargo build --verbose --release && \
-    cargo install
+RUN apt update
+RUN apt install -y libssl-dev
+RUN cargo build --verbose --release
+RUN cargo install
 
-ENV PATH "$PATH:/root/.cargo/bin/"
+FROM debian:stretch
+COPY --from=builder /usr/local/cargo/bin/rs_watch /usr/bin
+
+RUN apt update && apt install -y libssl1.1 ca-certificates
 CMD rs_watch
