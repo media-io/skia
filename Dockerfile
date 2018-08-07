@@ -2,6 +2,8 @@ FROM rust:1.24-stretch as builder
 
 ADD . ./
 
+RUN free -k
+RUN cat /proc/cpuinfo
 RUN apt update
 RUN apt install -y libssl-dev
 RUN cargo build --verbose --release
