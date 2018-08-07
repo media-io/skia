@@ -14,7 +14,7 @@ variables:
 build:
   stage: build
   script:
-    - docker build --memory-swap="1g" --build-arg CI_COMMIT_SHA=$CI_COMMIT_SHA -t $CONTAINER_LOCAL_IMAGE .
+    - docker build --memory="500m" --memory-swap="1500m" --build-arg CI_COMMIT_SHA=$CI_COMMIT_SHA -t $CONTAINER_LOCAL_IMAGE .
     - docker login -u dind-runner -p $REGISTRY_PASSWORD $CONTAINER_REGISTRY
     - docker tag $CONTAINER_LOCAL_IMAGE $CONTAINER_RELEASE_IMAGE
     - docker push $CONTAINER_RELEASE_IMAGE
