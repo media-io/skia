@@ -1,13 +1,11 @@
-FROM rust:1.24-stretch as builder
+FROM rust:1.28-stretch as builder
 
 ADD . ./
 
-RUN free -k
-RUN cat /proc/cpuinfo
-RUN apt update
-RUN apt install -y libssl-dev
-RUN cargo build --verbose --release
-RUN cargo install
+RUN apt update && \
+    apt install -y libssl-dev && \
+    cargo build --verbose --release && \
+    cargo install
 
 FROM debian:stretch
 COPY --from=builder /usr/local/cargo/bin/rs_watch /usr/bin
