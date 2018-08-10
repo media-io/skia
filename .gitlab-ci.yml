@@ -9,12 +9,12 @@ stages:
 variables:
   CONTAINER_LOCAL_IMAGE: watch
   CONTAINER_REGISTRY: registry.ebu.io
-  CONTAINER_RELEASE_IMAGE: registry.ebu.io/vidtext/watch:$CI_COMMIT_SHA
+  CONTAINER_RELEASE_IMAGE: registry.ebu.io/vidtext/watch:$CI_COMMIT_DESCRIPTION
 
 build:
   stage: build
   script:
-    - docker build --memory="500m" --memory-swap="1500m" --build-arg CI_COMMIT_SHA=$CI_COMMIT_SHA -t $CONTAINER_LOCAL_IMAGE .
+    - docker build --build-arg CI_COMMIT_DESCRIPTION=$CI_COMMIT_DESCRIPTION -t $CONTAINER_LOCAL_IMAGE .
     - docker login -u dind-runner -p $REGISTRY_PASSWORD $CONTAINER_REGISTRY
     - docker tag $CONTAINER_LOCAL_IMAGE $CONTAINER_RELEASE_IMAGE
     - docker push $CONTAINER_RELEASE_IMAGE
