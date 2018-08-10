@@ -15,6 +15,7 @@ build:
   stage: build
   script:
     - env
+    - lsb_release -a
     - apt update && apt install git
     - git describe --always --tags --first-parent
     - docker build --build-arg CI_COMMIT_SHA=$CI_COMMIT_SHA -t $CONTAINER_LOCAL_IMAGE .
