@@ -9,17 +9,16 @@ stages:
 variables:
   CONTAINER_LOCAL_IMAGE: watch
   CONTAINER_REGISTRY: registry.ebu.io
-  CONTAINER_RELEASE_IMAGE: registry.ebu.io/vidtext/watch:$CI_COMMIT_SHA
+  CONTAINER_IMAGE_NAME: vidtext/watch
 
 build:
   stage: build
   script:
-    - env
     - apk add --no-cache git
-    - git describe --always --tags --first-parent
-    - docker build --build-arg CI_COMMIT_SHA=$CI_COMMIT_SHA -t $CONTAINER_LOCAL_IMAGE .
+    - export IMAGE_TAG=`git describe --always --tags --first-parent`
+    - docker build --build-arg IMAGE_TAG=$IMAGE_TAG -t $CONTAINER_LOCAL_IMAGE .
     - docker login -u dind-runner -p $REGISTRY_PASSWORD $CONTAINER_REGISTRY
-    - docker tag $CONTAINER_LOCAL_IMAGE $CONTAINER_RELEASE_IMAGE
-    - docker push $CONTAINER_RELEASE_IMAGE
+    - docker tag $CONTAINER_LOCAL_IMAGE $CONTAINER_REGISTRY/$CONTAINER_IMAGE_NAME:$IMAGE_TAG
+    - docker push $CONTAINER_REGISTRY/$CONTAINER_IMAGE_NAME:$IMAGE_TAG
   tags:
     - dind
