@@ -13,6 +13,7 @@ pub struct Socket {
   pub port: String,
   pub secure: bool,
   pub token: Option<String>,
+  pub last_event: Option<String>,
   pub username: String,
   pub websocket: Option<Phoenix>,
   pub mutex_chan: Option<Arc<Mutex<Channel>>>
@@ -32,6 +33,7 @@ struct Session {
 #[derive(Debug, Deserialize)]
 struct SessionReponse {
   access_token: String,
+  last_event: Option<String>,
 }
 
 impl Socket {
@@ -55,6 +57,7 @@ impl Socket {
       port,
       secure,
       token: None,
+      last_event: None,
       username,
       websocket: None,
       mutex_chan: None,
@@ -97,6 +100,7 @@ impl Socket {
 
     let content: SessionReponse = response.json().unwrap();
     self.token = Some(content.access_token);
+    self.last_event = content.last_event;
     Ok(())
   }
 
@@ -154,10 +158,20 @@ impl Socket {
     }
   }
 
-  pub fn send(&mut self, content: serde_json::Value) {
+  pub fn send(&mut self, topic: &str, content: serde_json::Value) -> Result<(), String> {
+    if self.websocket.is_none() {
+      return Err("missing websocket connection".to_owned());
+    }
+
     if let Some(ref mutex_chan) = self.mutex_chan {
-      let mut device_chan = mutex_chan.lock().unwrap();
-      device_chan.send(Event::Custom("response".to_string()), &content);
+      if let Ok(mut device_chan) = mutex_chan.lock() {
+        device_chan.send(Event::Custom(topic.to_string()), &content);
+        Ok(())
+      } else {
+        Err("missing websocket connection".to_owned())
+      }
+    } else {
+      Err("missing websocket connection".to_owned())
     }
   }
 }

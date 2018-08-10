@@ -101,6 +101,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "num-integer 0.1.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.71 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -572,7 +573,7 @@ dependencies = [
 [[package]]
 name = "phoenix"
 version = "0.1.2"
-source = "git+https://github.com/media-io/phoenix-rs#670bef28f1014ed166700a7427262ab67db1f46c"
+source = "git+https://github.com/media-io/phoenix-rs#dc531b21cd86f235ca911500c6513e09de82c190"
 dependencies = [
  "env_logger 0.5.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -1,20 +1,35 @@
 
-//use chrono::NaiveDateTime;
+use chrono::NaiveDateTime;
+use serde_json::{Map, Value};
+use std;
 use std::fs::File;
 use std::io::prelude::*;
 
 #[derive(Debug)]
-struct AdodeMediaEncoderLog {
-  entries: Vec<Entry>
+pub struct AdobeMediaEncoderLog {
+  pub entries: Vec<Entry>
 }
 
+#[derive(Debug, Serialize)]
+pub struct Entry {
+  pub date_time: NaiveDateTime,
+  pub input_filename: Option<String>,
+  pub output_filename: Option<String>,
+  pub preset: Option<String>,
+}
 
-#[derive(Debug)]
-struct Entry {
-  //date_time: NaiveDateTime,
-  input_filename: Option<String>,
-  output_filename: Option<String>,
-  preset: Option<String>,
+impl From<Entry> for Value {
+  fn from(entry: Entry) -> Self {
+    let mut m = Map::new();
+    // m.insert("date_time".to_string(), format!("{}", entry.date_time.format("%Y-%m-%dT%H:%M:%S%.f%:z")).into());
+    if let Some(output_filename) = entry.output_filename {
+      m.insert("output_filename".to_string(), output_filename.into());
+    }
+    if let Some(preset) = entry.preset {
+      m.insert("preset".to_string(), preset.into());
+    }
+    m.into()
+  }
 }
 
 fn to_u16(s8: &mut [u8]) -> &mut [u16] {
@@ -32,7 +47,7 @@ fn load_file(filename: &str) -> Result<String, String> {
   String::from_utf16(to_u16(contents.as_mut_slice())).map_err(|e| e.to_string())
 }
 
-impl AdodeMediaEncoderLog {
+impl AdobeMediaEncoderLog {
   pub fn open(filename: &str) -> Result<Self, String> {
     let mut entries = vec![];
     let content = load_file(filename)?;
@@ -46,7 +61,7 @@ impl AdodeMediaEncoderLog {
       if line.ends_with(" : File Successfully Encoded") {
 
         let dt = line.replace(" : File Successfully Encoded", "");
-        //let date_time = NaiveDateTime::parse_from_str(&dt, "%m/%d/%Y %I:%M:%S %p").unwrap();
+        let date_time = NaiveDateTime::parse_from_str(&dt, "%m/%d/%Y %I:%M:%S %p").unwrap();
 
         let mut index_back = 1;
         let mut input_filename = None;
@@ -61,7 +76,7 @@ impl AdodeMediaEncoderLog {
           let line = lines[index-index_back];
           if *line == "".to_string() {
             entries.push(Entry{
-              //date_time,
+              date_time,
               input_filename,
               output_filename,
               preset,
@@ -88,7 +103,7 @@ impl AdodeMediaEncoderLog {
       }
     }
 
-    Ok(AdodeMediaEncoderLog {
+    Ok(AdobeMediaEncoderLog {
       entries: entries
     })
   }

@@ -44,3 +44,7 @@ pub fn get_backend_secure() -> String {
 pub fn get_root_path_browsing() -> String {
   get_env_value!("ROOT_PATH_BROWSING", "/tmp/")
 }
+
+pub fn get_adobe_media_encoder_log_filename() -> String {
+  get_env_value!("ADOBE_MEDIA_ENCODER_LOG_FILENAME", "tests/AMEEncodingLog.txt")
+}
