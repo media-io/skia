@@ -1,4 +1,3 @@
-
 extern crate chrono;
 extern crate env_logger;
 #[macro_use]
@@ -42,38 +41,38 @@ fn main() {
           if let Err(msg) = s.open_channel("browser:notification") {
             error!("{}", msg);
           } else {
-            let _ = s.send("get_info", json!({"identifier": identifier}));
+            let _ = s.send("get_info", json!({ "identifier": identifier }));
 
             loop {
               match s.next_message() {
-                Ok(message) => {
-                  match message.topic.as_ref() {
-                    "browser:notification" => {
-                      if let Custom(ref event_name) = message.event {
-                        if event_name == "reply_info" {
-                          if let Value::Object(map) = message.payload {
-                            if let Some(value) = map.get("last_event") {
-                              if let Value::String(datetime) = value {
-                                if let Ok(date_time) = NaiveDateTime::parse_from_str(&datetime, "%Y-%m-%dT%H:%M:%S%.fZ") {
-                                  last_time = Some(date_time);
-                                }
+                Ok(message) => match message.topic.as_ref() {
+                  "browser:notification" => {
+                    if let Custom(ref event_name) = message.event {
+                      if event_name == "reply_info" {
+                        if let Value::Object(map) = message.payload {
+                          if let Some(value) = map.get("last_event") {
+                            if let Value::String(datetime) = value {
+                              if let Ok(date_time) =
+                                NaiveDateTime::parse_from_str(&datetime, "%Y-%m-%dT%H:%M:%S%.fZ")
+                              {
+                                last_time = Some(date_time);
                               }
-                              break;
                             }
+                            break;
                           }
                         }
                       }
                     }
-                    "phoenix" => {}
-                    _ => debug!("{:?}", message),
                   }
+                  "phoenix" => {}
+                  _ => debug!("{:?}", message),
                 },
                 Err(_err) => {
                   break;
                 }
               }
             }
-            
+
             info!("start watching with last time: {:?}", last_time);
 
             loop {
@@ -82,7 +81,6 @@ fn main() {
 
               if let Ok(logs_content) = AdobeMediaEncoderLog::open(&filename) {
                 for mut entry in logs_content.entries {
-
                   if let Some(lt) = last_time {
                     if entry.date_time <= lt {
                       continue;
@@ -92,11 +90,12 @@ fn main() {
                   let new_time = Some(entry.date_time);
                   let mounted_path = config::get_mounted_name_path_browsing();
                   let root_path = config::get_root_path_browsing();
-                  entry.output_filename =
-                    match entry.output_filename {
-                        Some(ref output_filename) => Some(output_filename.replace(&mounted_path, &root_path)),
-                        None => None,
-                    };
+                  entry.output_filename = match entry.output_filename {
+                    Some(ref output_filename) => {
+                      Some(output_filename.replace(&mounted_path, &root_path))
+                    }
+                    None => None,
+                  };
                   // entry.output_filename.map(|x| x.replace(&mounted_path, &root_path));
 
                   if let Err(_) = s.send("new_item", entry.into()) {
@@ -137,11 +136,11 @@ fn main() {
                     if let Err(_) = s.send("response", files.into()) {
                       break;
                     }
-                  },
-                  "phoenix" => {},
+                  }
+                  "phoenix" => {}
                   _ => debug!("{:?}", message),
                 }
-              },
+              }
               Err(_err) => {
                 break;
               }

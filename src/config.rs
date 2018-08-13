@@ -1,20 +1,18 @@
-
 use std::env;
 
 macro_rules! get_env_value {
-  ($key:expr, $default:expr) => (
-  {
+  ($key:expr, $default:expr) => {{
     let mut item = $default.to_string();
     for (key, value) in env::vars() {
       match key.as_ref() {
         $key => {
           item = value;
         }
-        _ => {},
+        _ => {}
       }
     }
     item
-  })
+  }};
 }
 
 pub fn get_identifier() -> String {
@@ -50,5 +48,8 @@ pub fn get_mounted_name_path_browsing() -> String {
 }
 
 pub fn get_adobe_media_encoder_log_filename() -> String {
-  get_env_value!("ADOBE_MEDIA_ENCODER_LOG_FILENAME", "tests/AMEEncodingLog.txt")
+  get_env_value!(
+    "ADOBE_MEDIA_ENCODER_LOG_FILENAME",
+    "tests/AMEEncodingLog.txt"
+  )
 }

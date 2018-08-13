@@ -1,13 +1,12 @@
-
 use config;
-use phoenix::message::Message;
 use phoenix::event::Event;
+use phoenix::message::Message;
 use serde_json::{Map, Value};
 use std::fs;
 
 #[derive(Debug)]
 struct FileSystem {
-  path: String
+  path: String,
 }
 
 impl FileSystem {
@@ -18,8 +17,8 @@ impl FileSystem {
           if let Some(path) = map.get("path") {
             if let &Value::String(ref string_path) = path {
               return Some(FileSystem {
-                path: string_path.to_owned()
-              })
+                path: string_path.to_owned(),
+              });
             }
           }
         }
@@ -66,14 +65,13 @@ pub fn process(message: Message) -> FileSystemResponse {
     match event.as_str() {
       "file_system" => {
         if let Some(order) = FileSystem::from(message.payload) {
-
           let full_path = config::get_root_path_browsing() + &order.path;
 
           if let Ok(paths) = fs::read_dir(full_path) {
             for path in paths {
               if let Ok(entry) = path {
                 if let Ok(metadata) = entry.metadata() {
-                  result.push(FileSystemEntry{
+                  result.push(FileSystemEntry {
                     filename: entry.file_name().to_str().unwrap().to_string(),
                     is_dir: metadata.is_dir(),
                     is_file: metadata.is_file(),
@@ -84,11 +82,8 @@ pub fn process(message: Message) -> FileSystemResponse {
           }
         }
       }
-      _ => {
-      }
+      _ => {}
     }
   }
-  FileSystemResponse {
-    entries: result
-  }
+  FileSystemResponse { entries: result }
 }

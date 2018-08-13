@@ -1,10 +1,9 @@
-
 use config;
 use phoenix::{Channel, Event, Message, Phoenix};
 use reqwest;
+use serde_json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use serde_json;
 
 //#[derive(Debug)]
 pub struct Socket {
@@ -16,12 +15,12 @@ pub struct Socket {
   pub last_event: Option<String>,
   pub username: String,
   pub websocket: Option<Phoenix>,
-  pub mutex_chan: Option<Arc<Mutex<Channel>>>
+  pub mutex_chan: Option<Arc<Mutex<Channel>>>,
 }
 
 #[derive(Debug, Serialize)]
 struct SessionBody {
-  session: Session
+  session: Session,
 }
 
 #[derive(Debug, Serialize)]
@@ -42,14 +41,10 @@ impl Socket {
     let port = config::get_backend_port();
     let username = config::get_backend_username();
     let password = config::get_backend_password();
-    let secure =
-      match config::get_backend_secure().as_str() {
-        "true" |
-        "True" |
-        "TRUE" |
-        "1" => true,
-        _ => false,
-      };
+    let secure = match config::get_backend_secure().as_str() {
+      "true" | "True" | "TRUE" | "1" => true,
+      _ => false,
+    };
 
     Socket {
       hostname,
@@ -65,12 +60,11 @@ impl Socket {
   }
 
   pub fn generate_token(&mut self) -> Result<(), String> {
-    let mut url =
-      if self.secure {
-        "https://".to_owned()
-      } else {
-        "http://".to_owned()
-      };
+    let mut url = if self.secure {
+      "https://".to_owned()
+    } else {
+      "http://".to_owned()
+    };
 
     url += &self.hostname;
     url += ":";
@@ -82,19 +76,24 @@ impl Socket {
       session: Session {
         email: self.username.clone(),
         password: self.password.clone(),
-      }
+      },
     };
 
     let client = reqwest::Client::new();
-    let mut response = client.post(&url)
+    let mut response = client
+      .post(&url)
       .json(&body)
-      .send().map_err(|e| e.to_string())?;
+      .send()
+      .map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {
       if response.status().is_server_error() {
         return Err("serveur error".to_owned());
       } else {
-        return Err(format!("Something else happened. Status: {:?}", response.status()));
+        return Err(format!(
+          "Something else happened. Status: {:?}",
+          response.status()
+        ));
       }
     }
 
@@ -105,12 +104,11 @@ impl Socket {
   }
 
   pub fn open_websocket(&mut self, identifier: &str) -> Result<(), String> {
-    let mut url =
-      if self.secure {
-        "wss://".to_owned()
-      } else {
-        "ws://".to_owned()
-      };
+    let mut url = if self.secure {
+      "wss://".to_owned()
+    } else {
+      "ws://".to_owned()
+    };
 
     url += &self.hostname;
     url += ":";
@@ -139,14 +137,12 @@ impl Socket {
         let mut device_chan = mutex_chan.lock().unwrap();
 
         let identifier = config::get_identifier();
-        let payload = json!({
-          "identifier": identifier
-        });
+        let payload = json!({ "identifier": identifier });
 
         device_chan.join_with_message(payload);
       }
       self.mutex_chan = Some(mutex_chan);
-      return Ok(())
+      return Ok(());
     }
     Err("missing websocket connection".to_owned())
   }

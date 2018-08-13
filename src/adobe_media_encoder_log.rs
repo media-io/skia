@@ -1,4 +1,3 @@
-
 use chrono::NaiveDateTime;
 use serde_json::{Map, Value};
 use std;
@@ -7,7 +6,7 @@ use std::io::prelude::*;
 
 #[derive(Debug)]
 pub struct AdobeMediaEncoderLog {
-  pub entries: Vec<Entry>
+  pub entries: Vec<Entry>,
 }
 
 #[derive(Debug, Serialize)]
@@ -35,16 +34,15 @@ impl From<Entry> for Value {
 }
 
 fn to_u16(s8: &mut [u8]) -> &mut [u16] {
-    unsafe {
-      std::slice::from_raw_parts_mut(s8.as_mut_ptr() as *mut u16, s8.len() / 2)
-    }
+  unsafe { std::slice::from_raw_parts_mut(s8.as_mut_ptr() as *mut u16, s8.len() / 2) }
 }
 
 fn load_file(filename: &str) -> Result<String, String> {
   let mut f = File::open(filename).expect("Unable to open file {filename}");
 
   let mut contents = Vec::new();
-  f.read_to_end(&mut contents).expect("something went wrong reading the file");
+  f.read_to_end(&mut contents)
+    .expect("something went wrong reading the file");
 
   String::from_utf16(to_u16(contents.as_mut_slice())).map_err(|e| e.to_string())
 }
@@ -54,14 +52,13 @@ impl AdobeMediaEncoderLog {
     let mut entries = vec![];
     let content = load_file(filename)?;
 
-    let lines : Vec<&str> = content.split("\r\n").collect();
+    let lines: Vec<&str> = content.split("\r\n").collect();
     for (index, line) in lines.iter().enumerate() {
       if *line == "".to_string() {
         continue;
       }
 
       if line.ends_with(" : File Successfully Encoded") {
-
         let dt = line.replace(" : File Successfully Encoded", "");
         let date_time = NaiveDateTime::parse_from_str(&dt, "%m/%d/%Y %I:%M:%S %p").unwrap();
 
@@ -75,9 +72,9 @@ impl AdobeMediaEncoderLog {
             break;
           }
 
-          let line = lines[index-index_back];
+          let line = lines[index - index_back];
           if *line == "".to_string() {
-            entries.push(Entry{
+            entries.push(Entry {
               date_time,
               input_filename,
               output_filename,
@@ -86,27 +83,19 @@ impl AdobeMediaEncoderLog {
             break;
           }
           if line.starts_with(" - Output File: ") {
-            output_filename =
-              Some(line.replace(" - Output File: ", "")
-              .replace("\\", "/"));
+            output_filename = Some(line.replace(" - Output File: ", "").replace("\\", "/"));
           }
           if line.starts_with(" - Input File: ") {
-            output_filename =
-              Some(line.replace(" - Input File: ", "")
-              .replace("\\", "/"));
+            output_filename = Some(line.replace(" - Input File: ", "").replace("\\", "/"));
           }
           if line.starts_with(" - Preset Used: ") {
-            preset =
-              Some(line.replace(" - Preset Used: ", "")
-              .replace("\\", "/"));
+            preset = Some(line.replace(" - Preset Used: ", "").replace("\\", "/"));
           }
           index_back += 1;
         }
       }
     }
 
-    Ok(AdobeMediaEncoderLog {
-      entries: entries
-    })
+    Ok(AdobeMediaEncoderLog { entries: entries })
   }
 }
