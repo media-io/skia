@@ -21,12 +21,14 @@ pub struct Entry {
 impl From<Entry> for Value {
   fn from(entry: Entry) -> Self {
     let mut m = Map::new();
-    // m.insert("date_time".to_string(), format!("{}", entry.date_time.format("%Y-%m-%dT%H:%M:%S%.f%:z")).into());
+    let date_time = format!("{}", entry.date_time.format("%Y-%m-%dT%H:%M:%S"));
+    // println!("{:?}", date_time);
+    m.insert("date_time".to_owned(), date_time.into());
     if let Some(output_filename) = entry.output_filename {
-      m.insert("output_filename".to_string(), output_filename.into());
+      m.insert("output_filename".to_owned(), output_filename.into());
     }
     if let Some(preset) = entry.preset {
-      m.insert("preset".to_string(), preset.into());
+      m.insert("preset".to_owned(), preset.into());
     }
     m.into()
   }

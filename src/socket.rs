@@ -104,7 +104,7 @@ impl Socket {
     Ok(())
   }
 
-  pub fn open_websocket(&mut self) -> Result<(), String> {
+  pub fn open_websocket(&mut self, identifier: &str) -> Result<(), String> {
     let mut url =
       if self.secure {
         "wss://".to_owned()
@@ -124,6 +124,7 @@ impl Socket {
     let mut params = HashMap::new();
     let token = self.token.as_ref().unwrap();
     params.insert("userToken", token.as_str());
+    params.insert("identifier", identifier);
 
     debug!("connect to websocket: {}", url);
     self.websocket = Some(Phoenix::new_with_parameters(&url, &params));
