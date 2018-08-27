@@ -8,7 +8,7 @@ chrono = {version = "0.4", features=["serde"]}
 clap = "2.32.0"
 env_logger = "0.5.10"
 log = "^0.4"
-phoenix = {git = "https://github.com/media-io/phoenix-rs", branch = "master" }
+phoenix = { git = "https://github.com/media-io/phoenix-rs", branch = "master" }
 reqwest = "0.8.6"
 serde = "1.0.70"
 serde_derive = "1.0.70"
