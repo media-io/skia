@@ -36,12 +36,37 @@ struct SessionReponse {
 }
 
 impl Socket {
+  pub fn new(
+    hostname: &str,
+    port: &str,
+    username: &str,
+    password: &str,
+    secure: &str
+  ) -> Self {
+    let b_secure = match secure {
+      "true" | "True" | "TRUE" | "1" => true,
+      _ => false,
+    };
+
+    Socket {
+      hostname: hostname.to_owned(),
+      password: password.to_owned(),
+      port: port.to_owned(),
+      secure: b_secure,
+      token: None,
+      last_event: None,
+      username: username.to_owned(),
+      websocket: None,
+      mutex_chan: None,
+    }
+  }
+
   pub fn new_from_config() -> Self {
-    let hostname = config::get_backend_hostname();
-    let port = config::get_backend_port();
-    let username = config::get_backend_username();
-    let password = config::get_backend_password();
-    let secure = match config::get_backend_secure().as_str() {
+    let hostname = config::get_backend_hostname(None);
+    let port = config::get_backend_port(None);
+    let username = config::get_backend_username(None);
+    let password = config::get_backend_password(None);
+    let secure = match config::get_backend_secure(None).as_str() {
       "true" | "True" | "TRUE" | "1" => true,
       _ => false,
     };
@@ -130,13 +155,11 @@ impl Socket {
     Ok(())
   }
 
-  pub fn open_channel(&mut self, channel_name: &str) -> Result<(), String> {
+  pub fn open_channel(&mut self, identifier: &str, channel_name: &str) -> Result<(), String> {
     if let Some(ref mut phoenix) = self.websocket {
       let mutex_chan = phoenix.channel(channel_name).clone();
       {
         let mut device_chan = mutex_chan.lock().unwrap();
-
-        let identifier = config::get_identifier();
         let payload = json!({ "identifier": identifier });
 
         device_chan.join_with_message(payload);

@@ -5,6 +5,7 @@ authors = ["Marc-Antoine Arnaud <arnaud.marcantoine@gmail.com>"]
 
 [dependencies]
 chrono = {version = "0.4", features=["serde"]}
+clap = "2.32.0"
 env_logger = "0.5.10"
 log = "^0.4"
 phoenix = {git = "https://github.com/media-io/phoenix-rs", branch = "master" }

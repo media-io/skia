@@ -1,4 +1,3 @@
-use config;
 use phoenix::event::Event;
 use phoenix::message::Message;
 use serde_json::{Map, Value};
@@ -59,13 +58,13 @@ impl From<FileSystemEntry> for Value {
   }
 }
 
-pub fn process(message: Message) -> FileSystemResponse {
+pub fn process(message: Message, root_path: &str) -> FileSystemResponse {
   let mut result = vec![];
   if let Event::Custom(event) = message.event {
     match event.as_str() {
       "file_system" => {
         if let Some(order) = FileSystem::from(message.payload) {
-          let full_path = config::get_root_path_browsing() + &order.path;
+          let full_path = root_path.to_owned() + &order.path;
 
           if let Ok(paths) = fs::read_dir(full_path) {
             for path in paths {
