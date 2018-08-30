@@ -10,18 +10,24 @@ extern crate serde;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+extern crate tokio_core;
+extern crate websocket;
 
 mod adobe_media_encoder_log;
 mod browser;
 mod config;
 mod socket;
+mod uploader;
 
 use adobe_media_encoder_log::AdobeMediaEncoderLog;
 use chrono::NaiveDateTime;
 use clap::{Arg, App};
-use phoenix::Event::Custom;
+use phoenix::Event::*;
 use serde_json::Value;
 use std::{thread, time};
+use websocket::futures::sync::mpsc;
+use websocket::futures::Stream;
+use tokio_core::reactor::Core;
 
 fn main() {
   let matches =
@@ -92,26 +98,115 @@ fn main() {
  
   env_logger::Builder::from_env(env).init();
 
-  let identifier = config::get_identifier(matches.value_of("identifier"));
   let root_path_browsing = config::get_root_path_browsing(matches.value_of("root_path_browsing"));
 
   let hostname = config::get_backend_hostname(matches.value_of("hostname"));
-  let port = config::get_backend_port(matches.value_of("port"));
-  let username = config::get_backend_username(matches.value_of("username"));
+  let identifier = config::get_identifier(matches.value_of("identifier"));
   let password = config::get_backend_password(matches.value_of("password"));
+  let port = config::get_backend_port(matches.value_of("port"));
   let secure = config::get_backend_secure(matches.value_of("secure"));
+  let username = config::get_backend_username(matches.value_of("username"));
+
+  let m = matches.clone();
 
   thread::spawn(move || {
-    let identifier = config::get_identifier(matches.value_of("identifier"));
+    let hostname = config::get_backend_hostname(m.value_of("hostname"));
+    let identifier = config::get_identifier(m.value_of("identifier"));
+    let password = config::get_backend_password(m.value_of("password"));
+    let port = config::get_backend_port(m.value_of("port"));
+    let root_path_browsing = config::get_root_path_browsing(m.value_of("root_path_browsing"));
+    let secure = config::get_backend_secure(m.value_of("secure"));
+    let username = config::get_backend_username(m.value_of("username"));
+
+    let b_secure = match secure.as_str() {
+      "true" | "True" | "TRUE" | "1" => true,
+      _ => false,
+    };
+
+    let mut upload_ws =
+      if b_secure {
+        "wss://".to_owned()
+      } else {
+        "ws://".to_owned()
+      };
+    upload_ws += &hostname;
+    upload_ws += ":";
+    if &hostname != "127.0.0.1" {
+      upload_ws += &port;
+      upload_ws += "/upload";
+    } else {
+      upload_ws += "4010";
+    }
 
     loop {
-      let mut last_time = None;
-      let mut s = socket::Socket::new_from_config();
+      let mut s =
+        socket::Socket::new(
+          &hostname,
+          &port,
+          &username,
+          &password,
+          &secure
+        );
 
       if let Err(msg) = s.generate_token() {
         error!("{}", msg);
       } else {
-        if let Err(msg) = s.open_websocket(&identifier) {
+        let (sender, emitter) = mpsc::channel(0);
+        let (callback, mut messages) = mpsc::channel(0);
+        if let Err(msg) = s.open_websocket(&sender, emitter, &callback, &identifier) {
+          error!("{}", msg);
+        } else {
+          if let Err(msg) = s.open_channel(&identifier, "transfer:upload") {
+            error!("{}", msg);
+          } else {
+
+            let runner =
+              messages
+              .for_each(|message| {
+                // println!("{:?}", message);
+                match message.topic.as_ref() {
+                  "transfer:upload" => {
+                    uploader::process(&upload_ws, message, &root_path_browsing);
+                  }
+                  "phoenix" => {}
+                  _ => { debug!("{:?}", message); }
+                }
+                Ok(())
+              });
+
+
+            let mut core = Core::new().unwrap();
+            core.run(runner).unwrap();
+          }
+        }
+      }
+    }
+  });
+
+  thread::spawn(move || {
+    let hostname = config::get_backend_hostname(matches.value_of("hostname"));
+    let identifier = config::get_identifier(matches.value_of("identifier"));
+    let password = config::get_backend_password(matches.value_of("password"));
+    let port = config::get_backend_port(matches.value_of("port"));
+    let secure = config::get_backend_secure(matches.value_of("secure"));
+    let username = config::get_backend_username(matches.value_of("username"));
+
+    loop {
+      let mut s =
+        socket::Socket::new(
+          &hostname,
+          &port,
+          &username,
+          &password,
+          &secure
+        );
+
+      if let Err(msg) = s.generate_token() {
+        error!("{}", msg);
+      } else {
+        let (sender, emitter) = mpsc::channel(0);
+        let (callback, mut messages) = mpsc::channel(0);
+        if let Err(msg) = s.open_websocket(&sender, emitter, &callback, &identifier) {
           error!("{}", msg);
         } else {
           if let Err(msg) = s.open_channel(&identifier, "browser:notification") {
@@ -119,36 +214,47 @@ fn main() {
           } else {
             let _ = s.send("get_info", json!({ "identifier": identifier }));
 
-            loop {
-              match s.next_message() {
-                Ok(message) => match message.topic.as_ref() {
+            let runner =
+              messages
+              .filter_map(|message| {
+                // println!("{:?}", message);
+
+                match message.topic.as_ref() {
                   "browser:notification" => {
+                    debug!("browser:notification: {:?}", message);
                     if let Custom(ref event_name) = message.event {
                       if event_name == "reply_info" {
-                        if let Value::Object(map) = message.payload {
+                        if let Value::Object(ref map) = message.payload {
                           if let Some(value) = map.get("last_event") {
                             if let Value::String(datetime) = value {
                               if let Ok(date_time) =
                                 NaiveDateTime::parse_from_str(&datetime, "%Y-%m-%dT%H:%M:%S%.fZ")
                               {
-                                last_time = Some(date_time);
+                                return Some(Some(date_time));
+                              } else {
+                                return Some(None);
                               }
+                            } else {
+                              return Some(None);
                             }
-                            break;
                           }
                         }
                       }
                     }
                   }
                   "phoenix" => {}
-                  _ => debug!("{:?}", message),
-                },
-                Err(_err) => {
-                  break;
+                  _ => { debug!("{:?}", message);}
                 }
-              }
-            }
 
+                None
+              })
+              .take(1)
+              .collect();
+
+            let mut core = Core::new().unwrap();
+            let database_recorded_time = core.run(runner).unwrap();
+
+            let mut last_time = database_recorded_time.first().unwrap().clone();
             info!("start watching with last time: {:?}", last_time);
 
             loop {
@@ -172,7 +278,6 @@ fn main() {
                     }
                     None => None,
                   };
-                  // entry.output_filename.map(|x| x.replace(&mounted_path, &root_path));
 
                   if let Err(_) = s.send("new_item", entry.into()) {
                     break;
@@ -204,32 +309,37 @@ fn main() {
     if let Err(msg) = s.generate_token() {
       error!("{}", msg);
     } else {
-      if let Err(msg) = s.open_websocket(&identifier) {
+      let (sender, emitter) = mpsc::channel(0);
+      let (callback, messages) = mpsc::channel(0);
+      if let Err(msg) = s.open_websocket(&sender, emitter, &callback, &identifier) {
         error!("{}", msg);
       } else {
         if let Err(msg) = s.open_channel(&identifier, "browser:all") {
           error!("{}", msg);
         } else {
-          loop {
-            match s.next_message() {
-              Ok(message) => {
-                match message.topic.as_ref() {
-                  "browser:all" => {
-                    let files = browser::process(message, &root_path_browsing);
-                    // println!("{:?}", files);
-                    if let Err(_) = s.send("response", files.into()) {
-                      break;
-                    }
+          let runner =
+            messages
+            .for_each(|message| {
+              // println!("{:?}", message);
+
+              match message.topic.as_ref() {
+                "browser:all" => {
+                  debug!("browser:all: {:?}", message);
+                  let files = browser::process(message, &root_path_browsing);
+                  // println!("{:?}", files);
+                  if let Err(msg) = s.send("response", files.into()) {
+                    println!("{:?}", msg);
                   }
-                  "phoenix" => {}
-                  _ => debug!("{:?}", message),
                 }
+                "phoenix" => {}
+                _ => { debug!("{:?}", message); }
               }
-              Err(_err) => {
-                break;
-              }
-            }
-          }
+
+              Ok(())
+            });
+
+          let mut core = Core::new().unwrap();
+          core.run(runner).unwrap();
         }
       }
     }

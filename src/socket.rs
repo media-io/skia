@@ -1,9 +1,10 @@
-use config;
-use phoenix::{Channel, Event, Message, Phoenix};
+use phoenix::{Channel, Event, Phoenix, Message};
 use reqwest;
 use serde_json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use websocket::OwnedMessage;
+use websocket::futures::sync::mpsc::{Receiver, Sender};
 
 //#[derive(Debug)]
 pub struct Socket {
@@ -61,29 +62,6 @@ impl Socket {
     }
   }
 
-  pub fn new_from_config() -> Self {
-    let hostname = config::get_backend_hostname(None);
-    let port = config::get_backend_port(None);
-    let username = config::get_backend_username(None);
-    let password = config::get_backend_password(None);
-    let secure = match config::get_backend_secure(None).as_str() {
-      "true" | "True" | "TRUE" | "1" => true,
-      _ => false,
-    };
-
-    Socket {
-      hostname,
-      password,
-      port,
-      secure,
-      token: None,
-      last_event: None,
-      username,
-      websocket: None,
-      mutex_chan: None,
-    }
-  }
-
   pub fn generate_token(&mut self) -> Result<(), String> {
     let mut url = if self.secure {
       "https://".to_owned()
@@ -128,7 +106,11 @@ impl Socket {
     Ok(())
   }
 
-  pub fn open_websocket(&mut self, identifier: &str) -> Result<(), String> {
+  pub fn open_websocket(&mut self,
+    sender: &Sender<OwnedMessage>,
+    receiver: Receiver<OwnedMessage>,
+    callback: &Sender<Message>,
+    identifier: &str) -> Result<(), String> {
     let mut url = if self.secure {
       "wss://".to_owned()
     } else {
@@ -150,7 +132,7 @@ impl Socket {
     params.insert("identifier", identifier);
 
     debug!("connect to websocket: {}", url);
-    self.websocket = Some(Phoenix::new_with_parameters(&url, &params));
+    self.websocket = Some(Phoenix::new_with_parameters(&sender, receiver, callback, &url, &params));
 
     Ok(())
   }
@@ -170,28 +152,17 @@ impl Socket {
     Err("missing websocket connection".to_owned())
   }
 
-  pub fn next_message(&mut self) -> Result<Message, String> {
-    if let Some(ref mut phoenix) = self.websocket {
-      phoenix.out.recv().map_err(|e| e.to_string())
-    } else {
-      Err("missing websocket connection".to_owned())
-    }
-  }
-
   pub fn send(&mut self, topic: &str, content: serde_json::Value) -> Result<(), String> {
     if self.websocket.is_none() {
-      return Err("missing websocket connection".to_owned());
+      return Err("missing websocket connection".to_owned())
     }
 
     if let Some(ref mutex_chan) = self.mutex_chan {
       if let Ok(mut device_chan) = mutex_chan.lock() {
         device_chan.send(Event::Custom(topic.to_string()), &content);
-        Ok(())
-      } else {
-        Err("missing websocket connection".to_owned())
+        return Ok(());
       }
-    } else {
-      Err("missing websocket connection".to_owned())
     }
+    Err("unable to send message".to_owned())
   }
 }
