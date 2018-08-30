@@ -8,7 +8,7 @@ RUN apt update && \
     cargo install
 
 FROM debian:stretch
-COPY --from=builder /usr/local/cargo/bin/rs_watch /usr/bin
+COPY --from=builder /usr/local/cargo/bin/watcher /usr/bin
 
 RUN apt update && apt install -y libssl1.1 ca-certificates
-CMD rs_watch
+CMD watcher
