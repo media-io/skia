@@ -64,7 +64,8 @@ pub fn process(message: Message, root_path: &str) -> FileSystemResponse {
     match event.as_str() {
       "file_system" => {
         if let Some(order) = FileSystem::from(message.payload) {
-          let full_path = root_path.to_owned() + &order.path;
+          let full_path = root_path.to_owned() + "/"+ &order.path;
+          info!("Browse: {}", full_path);
 
           if let Ok(paths) = fs::read_dir(full_path) {
             for path in paths {
