@@ -96,7 +96,7 @@ pub fn process(upload_ws: &str, message: Message, root_path: &str) -> Result<Upl
       "start" => {
         if let Some(order) = UploadOrder::from(message.payload) {
           let job_id = order.job_id;
-          let full_path = format!("{}/{}", root_path, order.path);
+          let full_path = format!("{}", order.path);
           let ws = upload_ws.to_string();
           let t = thread::spawn(move || {
             let _ = upload_file(ws.as_str(), &full_path, &order.destination);
