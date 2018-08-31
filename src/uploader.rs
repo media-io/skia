@@ -3,7 +3,7 @@ use config::get_data_size;
 use phoenix::event::Event;
 use phoenix::message::Message;
 use serde_json;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::cmp::min;
 use std::fs;
 use std::fs::File;
@@ -23,6 +23,25 @@ struct UploadOrder {
   job_id: u64,
   path: String,
   destination: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UploadResponse {
+  pub job_id: Option<u64>,
+  pub message: Option<String>
+}
+
+impl From<UploadResponse> for Value {
+  fn from(response: UploadResponse) -> Self {
+    let mut m = Map::new();
+    if response.job_id.is_some() {
+      m.insert("job_id".to_string(), response.job_id.unwrap().into());
+    }
+    if response.message.is_some() {
+      m.insert("message".to_string(), response.message.unwrap().into());
+    }
+    m.into()
+  }
 }
 
 impl UploadOrder {
@@ -71,22 +90,47 @@ impl UploadOrder {
   }
 }
 
-pub fn process(upload_ws: &str, message: Message, root_path: &str) {
+pub fn process(upload_ws: &str, message: Message, root_path: &str) -> Result<UploadResponse, UploadResponse> {
   if let Event::Custom(ref event) = message.event {
     match event.as_str() {
       "start" => {
         if let Some(order) = UploadOrder::from(message.payload) {
+          let job_id = order.job_id;
           let full_path = format!("{}/{}", root_path, order.path);
           let ws = upload_ws.to_string();
           let t = thread::spawn(move || {
             let _ = upload_file(ws.as_str(), &full_path, &order.destination);
           });
 
-          let _ = t.join();
+          match t.join() {
+            Ok(()) => Ok(UploadResponse{
+                job_id: Some(job_id),
+                message: None
+              }),
+            Err(_) => Ok(UploadResponse{
+                job_id: Some(job_id),
+                message: Some("error during uploading".to_owned())
+              })
+          }
+        } else {
+          Err(UploadResponse{
+            job_id: None,
+            message: Some("unable to get properly parameters".to_owned())
+          })
         }
       }
-      _ => {}
+      _ => {
+        Err(UploadResponse{
+          job_id: None,
+          message: Some("unsupported event name".to_owned())
+        })
+      }
     }
+  } else {
+    Err(UploadResponse{
+      job_id: None,
+      message: Some("unsupported message".to_owned())
+    })
   }
 }
 

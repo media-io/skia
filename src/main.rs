@@ -22,7 +22,7 @@ mod uploader;
 use adobe_media_encoder_log::AdobeMediaEncoderLog;
 use chrono::NaiveDateTime;
 use clap::{Arg, App};
-use phoenix::Event::*;
+use phoenix::{Event, PhoenixEvent};
 use serde_json::Value;
 use std::{thread, time};
 use websocket::futures::sync::mpsc;
@@ -163,12 +163,23 @@ fn main() {
             let runner =
               messages
               .for_each(|message| {
-                // println!("{:?}", message);
+                debug!("{:?}", message);
                 match message.topic.as_ref() {
                   "transfer:upload" => {
-                    uploader::process(&upload_ws, message, &root_path_browsing);
+                    match uploader::process(&upload_ws, message, &root_path_browsing) {
+                      Ok(msg) => {
+                        let _ = s.send("upload_completed", msg.into());
+                      }
+                      Err(msg) => {
+                        let _ = s.send("upload_error", msg.into());
+                      }
+                    }
                   }
-                  "phoenix" => {}
+                  "phoenix" => {
+                    if message.event == Event::Defined(PhoenixEvent::Close) {
+                      return Err(());
+                    }
+                  }
                   _ => { debug!("{:?}", message); }
                 }
                 Ok(())
@@ -176,10 +187,15 @@ fn main() {
 
 
             let mut core = Core::new().unwrap();
-            core.run(runner).unwrap();
+            if let Err(msg) = core.run(runner) {
+              error!("{:?}", msg);
+            }
           }
         }
       }
+
+      thread::sleep(time::Duration::from_millis(1000));
+      warn!("retry to connect ...");
     }
   });
 
@@ -217,12 +233,12 @@ fn main() {
             let runner =
               messages
               .filter_map(|message| {
-                // println!("{:?}", message);
+                debug!("{:?}", message);
 
                 match message.topic.as_ref() {
                   "browser:notification" => {
                     debug!("browser:notification: {:?}", message);
-                    if let Custom(ref event_name) = message.event {
+                    if let Event::Custom(ref event_name) = message.event {
                       if event_name == "reply_info" {
                         if let Value::Object(ref map) = message.payload {
                           if let Some(value) = map.get("last_event") {
@@ -242,7 +258,11 @@ fn main() {
                       }
                     }
                   }
-                  "phoenix" => {}
+                  "phoenix" => {
+                    if message.event == Event::Defined(PhoenixEvent::Close) {
+                      return None;
+                    }
+                  }
                   _ => { debug!("{:?}", message);}
                 }
 
@@ -252,41 +272,51 @@ fn main() {
               .collect();
 
             let mut core = Core::new().unwrap();
-            let database_recorded_time = core.run(runner).unwrap();
-
-            let mut last_time = database_recorded_time.first().unwrap().clone();
-            info!("start watching with last time: {:?}", last_time);
-
-            loop {
-              let filename = config::get_adobe_media_encoder_log_filename(matches.value_of("ame_log_filename"));
-              //debug!("watching file {}", filename);
-
-              if let Ok(logs_content) = AdobeMediaEncoderLog::open(&filename) {
-                for mut entry in logs_content.entries {
-                  if let Some(lt) = last_time {
-                    if entry.date_time <= lt {
-                      continue;
-                    }
-                  }
-
-                  let new_time = Some(entry.date_time);
-                  let mounted_path = config::get_mounted_name_path_browsing(matches.value_of("mounted_browsing_path"));
-                  let root_path = config::get_root_path_browsing(matches.value_of("root_path_browsing"));
-                  entry.output_filename = match entry.output_filename {
-                    Some(ref output_filename) => {
-                      Some(output_filename.replace(&mounted_path, &root_path))
-                    }
-                    None => None,
-                  };
-
-                  if let Err(_) = s.send("new_item", entry.into()) {
-                    break;
+            match core.run(runner) {
+              Err(msg) => {
+                error!("{:?}", msg);
+              }
+              Ok(database_recorded_time) => {
+                let mut last_time =
+                  if let Some(first) = database_recorded_time.first() {
+                    first.clone()
                   } else {
-                    last_time = new_time;
+                    None
+                  };
+                info!("start watching with last time: {:?}", last_time);
+
+                loop {
+                  let filename = config::get_adobe_media_encoder_log_filename(matches.value_of("ame_log_filename"));
+                  //debug!("watching file {}", filename);
+
+                  if let Ok(logs_content) = AdobeMediaEncoderLog::open(&filename) {
+                    for mut entry in logs_content.entries {
+                      if let Some(lt) = last_time {
+                        if entry.date_time <= lt {
+                          continue;
+                        }
+                      }
+
+                      let new_time = Some(entry.date_time);
+                      let mounted_path = config::get_mounted_name_path_browsing(matches.value_of("mounted_browsing_path"));
+                      let root_path = config::get_root_path_browsing(matches.value_of("root_path_browsing"));
+                      entry.output_filename = match entry.output_filename {
+                        Some(ref output_filename) => {
+                          Some(output_filename.replace(&mounted_path, &root_path))
+                        }
+                        None => None,
+                      };
+
+                      if let Err(_) = s.send("new_item", entry.into()) {
+                        break;
+                      } else {
+                        last_time = new_time;
+                      }
+                    }
                   }
+                  thread::sleep(time::Duration::from_millis(10000));
                 }
               }
-              thread::sleep(time::Duration::from_millis(10000));
             }
           }
         }
@@ -320,18 +350,21 @@ fn main() {
           let runner =
             messages
             .for_each(|message| {
-              // println!("{:?}", message);
+              debug!("{:?}", message);
 
               match message.topic.as_ref() {
                 "browser:all" => {
                   debug!("browser:all: {:?}", message);
                   let files = browser::process(message, &root_path_browsing);
-                  // println!("{:?}", files);
                   if let Err(msg) = s.send("response", files.into()) {
-                    println!("{:?}", msg);
+                    error!("{:?}", msg);
                   }
                 }
-                "phoenix" => {}
+                "phoenix" => {
+                  if message.event == Event::Defined(PhoenixEvent::Close) {
+                    return Err(());
+                  }
+                }
                 _ => { debug!("{:?}", message); }
               }
 
@@ -339,12 +372,14 @@ fn main() {
             });
 
           let mut core = Core::new().unwrap();
-          core.run(runner).unwrap();
+          if let Err(msg) = core.run(runner) {
+            error!("{:?}", msg);
+          }
         }
       }
     }
 
     thread::sleep(time::Duration::from_millis(1000));
-    debug!("retry to connect ...");
+    warn!("retry to connect ...");
   }
 }
