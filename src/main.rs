@@ -130,7 +130,9 @@ fn main() {
       };
     upload_ws += &hostname;
     upload_ws += ":";
-    if &hostname != "127.0.0.1" {
+    if &hostname != "127.0.0.1" ||
+      &hostname != "localhost" ||
+      &hostname != "0.0.0.0"  {
       upload_ws += &port;
       upload_ws += "/upload";
     } else {
