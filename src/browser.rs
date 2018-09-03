@@ -43,6 +43,7 @@ impl From<FileSystemResponse> for Value {
 
 #[derive(Debug, Serialize)]
 pub struct FileSystemEntry {
+  pub root: String,
   pub filename: String,
   pub is_dir: bool,
   pub is_file: bool,
@@ -51,9 +52,12 @@ pub struct FileSystemEntry {
 impl From<FileSystemEntry> for Value {
   fn from(response: FileSystemEntry) -> Self {
     let mut m = Map::new();
+    let abs_path = response.root + &response.filename;
+
     m.insert("filename".to_string(), response.filename.into());
     m.insert("is_dir".to_string(), response.is_dir.into());
     m.insert("is_file".to_string(), response.is_file.into());
+    m.insert("abs_path".to_string(), abs_path.into());
     m.into()
   }
 }
@@ -67,12 +71,13 @@ pub fn process(message: Message, root_path: &str) -> FileSystemResponse {
           let full_path = root_path.to_owned() + "/"+ &order.path;
           info!("Browse: {}", full_path);
 
-          if let Ok(paths) = fs::read_dir(full_path) {
+          if let Ok(paths) = fs::read_dir(full_path.clone()) {
             for path in paths {
               if let Ok(entry) = path {
                 if let Ok(metadata) = entry.metadata() {
                   result.push(FileSystemEntry {
                     filename: entry.file_name().to_str().unwrap().to_string(),
+                    root: full_path.to_owned(),
                     is_dir: metadata.is_dir(),
                     is_file: metadata.is_file(),
                   })

@@ -114,7 +114,6 @@ fn main() {
     let identifier = config::get_identifier(m.value_of("identifier"));
     let password = config::get_backend_password(m.value_of("password"));
     let port = config::get_backend_port(m.value_of("port"));
-    let root_path_browsing = config::get_root_path_browsing(m.value_of("root_path_browsing"));
     let secure = config::get_backend_secure(m.value_of("secure"));
     let username = config::get_backend_username(m.value_of("username"));
 
@@ -166,7 +165,7 @@ fn main() {
                 debug!("{:?}", message);
                 match message.topic.as_ref() {
                   "transfer:upload" => {
-                    match uploader::process(&upload_ws, message, &root_path_browsing) {
+                    match uploader::process(&upload_ws, message) {
                       Ok(msg) => {
                         let _ = s.send("upload_completed", msg.into());
                       }

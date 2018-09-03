@@ -90,7 +90,7 @@ impl UploadOrder {
   }
 }
 
-pub fn process(upload_ws: &str, message: Message, root_path: &str) -> Result<UploadResponse, UploadResponse> {
+pub fn process(upload_ws: &str, message: Message) -> Result<UploadResponse, UploadResponse> {
   if let Event::Custom(ref event) = message.event {
     match event.as_str() {
       "start" => {
