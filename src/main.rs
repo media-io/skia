@@ -169,7 +169,11 @@ fn main() {
                   "transfer:upload" => {
                     match uploader::process(&upload_ws, message) {
                       Ok(msg) => {
-                        let _ = s.send("upload_completed", msg.into());
+                        if msg.message.is_none() {
+                          let _ = s.send("upload_completed", msg.into());
+                        } else {
+                          let _ = s.send("upload_error", msg.into());
+                        }
                       }
                       Err(msg) => {
                         let _ = s.send("upload_error", msg.into());

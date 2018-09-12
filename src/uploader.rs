@@ -99,14 +99,27 @@ pub fn process(upload_ws: &str, message: Message) -> Result<UploadResponse, Uplo
           let full_path = format!("{}", order.path);
           let ws = upload_ws.to_string();
           let t = thread::spawn(move || {
-            let _ = upload_file(ws.as_str(), &full_path, &order.destination);
+            if let Err(msg) = upload_file(ws.as_str(), &full_path, &order.destination) {
+              error!("{:?}", msg);
+              return msg;
+            }
+            "completed".to_string()
           });
 
           match t.join() {
-            Ok(()) => Ok(UploadResponse{
-                job_id: Some(job_id),
-                message: None
-              }),
+            Ok(message) => {
+              if message == "completed".to_string() {
+                Ok(UploadResponse{
+                  job_id: Some(job_id),
+                  message: None
+                })
+              } else {
+                Ok(UploadResponse{
+                  job_id: Some(job_id),
+                  message: Some(message)
+                })
+              }
+            }
             Err(_) => Ok(UploadResponse{
                 job_id: Some(job_id),
                 message: Some("error during uploading".to_owned())
@@ -149,7 +162,11 @@ pub fn upload_file(upload_ws: &str, filename: &str, dst_filename: &str) -> Resul
   let metadata = fs::metadata(filename.clone()).unwrap();
   let file_size = metadata.len();
 
-  let mut file = File::open(filename).unwrap();
+  let reader = File::open(filename);
+  if let Err(msg) = reader {
+    return Err(msg.to_string());
+  }
+  let mut file = reader.unwrap();
 
   let mut sended_data = 0;
 
@@ -158,15 +175,15 @@ pub fn upload_file(upload_ws: &str, filename: &str, dst_filename: &str) -> Resul
     size: file_size
   };
 
-  thread::spawn(move || {
+  let sender = thread::spawn(move || {
     let mut stdin_sink = usr_msg.wait();
 
     let str_message = serde_json::to_string(&start_message).unwrap();
     let msg = OwnedMessage::Text(str_message);
 
-    stdin_sink
-      .send(msg)
-      .expect("Sending message across stdin channel.");
+    if let Err(err_msg) = stdin_sink.send(msg).map_err(|e| e.to_string()) {
+      return err_msg;
+    }
 
     let packet_size_str = get_data_size(None);
     let packet_size = packet_size_str.parse::<u64>().unwrap();
@@ -183,19 +200,19 @@ pub fn upload_file(upload_ws: &str, filename: &str, dst_filename: &str) -> Resul
 
         let msg = OwnedMessage::Binary(contents);
 
-        stdin_sink
-          .send(msg)
-          .expect("Sending message across stdin channel.");
+        if let Err(err_msg) = stdin_sink.send(msg) {
+          return err_msg.to_string();
+        }
       }
     }
 
-
     let msg = OwnedMessage::Close(None);
-    stdin_sink
-      .send(msg)
-      .expect("Sending message across stdin channel.");
+    if let Err(err_msg) = stdin_sink.send(msg){
+      return err_msg.to_string();
+    }
 
     info!("Sended {}/{} bytes", sended_data, file_size);
+    "completed".to_string()
   });
 
   let runner = ClientBuilder::new(upload_ws)
@@ -215,6 +232,13 @@ pub fn upload_file(upload_ws: &str, filename: &str, dst_filename: &str) -> Resul
         }).select(stdin_ch.map_err(|_| WebSocketError::NoDataAvailable))
         .forward(sink)
     });
+
+
   core.run(runner).map_err(|e| e.to_string())?;
+
+  if let Err(msg) = sender.join() {
+    error!("Unable to send file {:?}", msg);
+    return Err("unable to send file".to_string());
+  }
   Ok(())
 }
