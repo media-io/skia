@@ -38,7 +38,7 @@ fn to_u16(s8: &mut [u8]) -> &mut [u16] {
 }
 
 fn load_file(filename: &str) -> Result<String, String> {
-  let mut f = File::open(filename).expect("Unable to open file {filename}");
+  let mut f = File::open(filename).map_err(|e| e.to_string())?;
 
   let mut contents = Vec::new();
   f.read_to_end(&mut contents)

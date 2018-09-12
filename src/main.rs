@@ -290,29 +290,34 @@ fn main() {
                   let filename = config::get_adobe_media_encoder_log_filename(matches.value_of("ame_log_filename"));
                   //debug!("watching file {}", filename);
 
-                  if let Ok(logs_content) = AdobeMediaEncoderLog::open(&filename) {
-                    for mut entry in logs_content.entries {
-                      if let Some(lt) = last_time {
-                        if entry.date_time <= lt {
-                          continue;
+                  match AdobeMediaEncoderLog::open(&filename) {
+                    Ok(logs_content) =>
+                      for mut entry in logs_content.entries {
+                        if let Some(lt) = last_time {
+                          if entry.date_time <= lt {
+                            continue;
+                          }
                         }
-                      }
 
-                      let new_time = Some(entry.date_time);
-                      let mounted_path = config::get_mounted_name_path_browsing(matches.value_of("mounted_browsing_path"));
-                      let root_path = config::get_root_path_browsing(matches.value_of("root_path_browsing"));
-                      entry.output_filename = match entry.output_filename {
-                        Some(ref output_filename) => {
-                          Some(output_filename.replace(&mounted_path, &root_path))
+                        let new_time = Some(entry.date_time);
+                        let mounted_path = config::get_mounted_name_path_browsing(matches.value_of("mounted_browsing_path"));
+                        let root_path = config::get_root_path_browsing(matches.value_of("root_path_browsing"));
+                        entry.output_filename = match entry.output_filename {
+                          Some(ref output_filename) => {
+                            Some(output_filename.replace(&mounted_path, &root_path))
+                          }
+                          None => None,
+                        };
+
+                        if let Err(_) = s.send("new_item", entry.into()) {
+                          break;
+                        } else {
+                          last_time = new_time;
                         }
-                        None => None,
-                      };
-
-                      if let Err(_) = s.send("new_item", entry.into()) {
-                        break;
-                      } else {
-                        last_time = new_time;
-                      }
+                      },
+                    Err(msg) => {
+                      error!("unable to read Adobe Media Encoder: {}", msg);
+                      thread::sleep(time::Duration::from_millis(120000));
                     }
                   }
                   thread::sleep(time::Duration::from_millis(10000));
