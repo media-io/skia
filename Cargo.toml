@@ -1,5 +1,5 @@
 [package]
-name = "watcher"
+name = "skia"
 version = "0.1.0"
 authors = ["Marc-Antoine Arnaud <arnaud.marcantoine@gmail.com>"]
 

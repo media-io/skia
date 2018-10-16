@@ -7,9 +7,9 @@ stages:
   - build
 
 variables:
-  CONTAINER_LOCAL_IMAGE: watch
+  CONTAINER_LOCAL_IMAGE: skia
   CONTAINER_REGISTRY: registry.ebu.io
-  CONTAINER_IMAGE_NAME: vidtext/watch
+  CONTAINER_IMAGE_NAME: vidtext/skia
 
 build:
   stage: build
